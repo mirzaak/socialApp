@@ -111,7 +111,7 @@ export default {
       return true;
     }
 
-    function comment(post_id, pcom) {
+    function comment(post_id) {
       fetch("http://127.0.0.1:8000/app/comments/" + post_id + "/", {
         method: "POST", // or 'PUT'
         headers: {

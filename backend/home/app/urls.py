@@ -23,6 +23,7 @@ urlpatterns = [
     path('upload/', views.upload, name='upload'),
     path('register/', views.register, name='register'),
     path('comments/<int:pk>/', CommentView.as_view()),
+    path('getcomments/<int:pk>/', GetCommentView.as_view()),
     path("", views.chatPage, name="chat-page"),
     
 ]+ static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
