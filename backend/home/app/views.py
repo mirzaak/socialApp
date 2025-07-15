@@ -1,281 +1,171 @@
-from rest_framework import generics, viewsets, status
+from rest_framework import generics, status, filters
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.contrib.auth.models import User
+from django.shortcuts import get_object_or_404
 from .models import Profile, Post, Comment
 from .serializers import (
-    UserSerializer,
-    PostSerializer,
-    ProfileSerializer,
-    CommentSerializer,
-    PublicUserSerializer,
-    CreatePostSerializer,
-    RegisterSerializer,
-    CreateCommentSerializer,
-    GetCommentSerializer,
+    UserSerializer, ProfileSerializer, PostSerializer,
+    CommentSerializer, RegisterSerializer, CreatePostSerializer
 )
-from rest_framework.response import Response
-from django.db.models import Q
-from django.http import HttpResponse
-from rest_framework.views import APIView
-from django.core.exceptions import ObjectDoesNotExist
-from rest_framework import filters
-from django.http import HttpResponse
-from django.shortcuts import render, redirect
-from django.http import JsonResponse
-from rest_framework.permissions import AllowAny
-from django.contrib.auth import authenticate
-from rest_framework_simplejwt.views import TokenObtainPairView
 
 
-class CreateProfile(generics.CreateAPIView):
+class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
-    serializer_class = UserSerializer
-
-    def get(self, *args, **kwargs):
-        posts = Profile.objects.get(user=self.request.user)
-        posts_data = ProfileSerializer(posts).data
-        return Response(data=posts_data, status=status.HTTP_200_OK)
-
-    def post(self, request):
-        serializer = RegisterSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            user = serializer.save()
-            Profile.objects.create(user=user)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-my_profile = CreateProfile.as_view()
-
-
-class OtherProfile(generics.CreateAPIView):
-    queryset = Profile.objects.all()
-    serializer_class = UserSerializer
-
-    def get(self, *args, **kwargs):
-        post_id = kwargs.get("user")
-        posts = Profile.objects.get(user__username=post_id)
-        posts_data = ProfileSerializer(posts).data
-        return Response(data=posts_data, status=status.HTTP_200_OK)
-
-
-other_profile = OtherProfile.as_view()
-
-
-class PostView(APIView):
-    def get(self, *args, **kwargs):
-        my_profile = Profile.objects.get(user=self.request.user)
-        my_posts = Q(profile=my_profile)
-        posts = Q(profile__followers=self.request.user)
-        all_posts = Post.objects.filter(my_posts & posts)
-        posts_data = PostSerializer(all_posts, many=True).data
-        return Response(data=posts_data, status=status.HTTP_200_OK)
-
-    def post(self, request, *args, **kwargs):
-        serializer = CreatePostSerializer(data=self.request.data)
-        if serializer.is_valid():
-            serializer.save(
-                user=request.user, data=request.data, profile=request.user.profile
-            )
-            return Response(data=serializer.data, status=status.HTTP_201_CREATED)
-        else:
-            return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def delete(self, request, *args, **kwargs):
-        post_id = kwargs.get("id")
-        try:
-            post = Post.objects.get(id=post_id)
-            if post.user.id == request.user.id:
-                post.delete()
-                return Response({"msg": "Post deleted"}, status=status.HTTP_200_OK)
-            else:
-                return Response(
-                    {"Error": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED
-                )
-        except ObjectDoesNotExist:
-            return Response(
-                {"error": "No post found"}, status=status.HTTP_404_NOT_FOUND
-            )
-
-
-post_view = PostView.as_view()
-
-
-class MyPostView(APIView):
-    def get(self, *args, **kwargs):
-        posts = Post.objects.filter(user=self.request.user)
-        posts_data = PostSerializer(posts, many=True).data
-        return Response(data=posts_data, status=status.HTTP_200_OK)
-
-
-my_post_view = MyPostView.as_view()
-
-
-class OtherPostView(APIView):
-    def get(self, *args, **kwargs):
-        profile_id = kwargs.get("user")
-        this_profile = Profile.objects.get(user__username=profile_id)
-        posts = Post.objects.filter(profile=this_profile)
-        posts_data = PostSerializer(posts, many=True).data
-        return Response(data=posts_data, status=status.HTTP_200_OK)
-
-
-other_post_view = OtherPostView.as_view()
-
-
-class LikePost(APIView):
-    def get(self, *args, **kwargs):
-        posts = Post.objects.filter(likes=self.request.user)
-        posts_data = PostSerializer(posts, many=True).data
-        return Response(data=posts_data, status=status.HTTP_200_OK)
-     
-    def post(self, request, *args, **kwargs):
-        post_id = kwargs.get("pk")
-        post = Post.objects.get(id=post_id)
-        liked = post.likes.contains(self.request.user)
-        if liked:
-            post.likes.remove(self.request.user)
-            post.isLikedByMe = False
-            post.save()
-        else:
-            post.likes.add(self.request.user)
-            post.isLikedByMe = True
-            post.save()
-        return Response(status=status.HTTP_200_OK)
-
-
-like_post = LikePost.as_view()
-
-
-class CommentView(APIView):
-    queryset = Comment.objects.all()
-    serializer_class = CommentSerializer
-
-    def get(self, *args, **kwargs):
-        posts = Comment.objects.filter(user=self.request.user)
-        posts_data = GetCommentSerializer(posts, many=True).data
-        return Response(data=posts_data, status=status.HTTP_200_OK)
-
-    def post(self, request, *args, **kwargs):
-        serializer = CreateCommentSerializer(data=request.data)
-        post_pk = kwargs.get("pk")
-        post = Post.objects.get(pk=post_pk)
-
-        if serializer.is_valid():
-            serializer.save(user=self.request.user)
-            d = serializer.save()
-            post.comments.add(d)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-comment_post = CommentView.as_view()
-
-
-class GetCommentView(APIView):
-    queryset = Comment.objects.all()
-    serializer_class = GetCommentSerializer
-
-    def get(self, *args, **kwargs):
-        posts = Comment.objects.all()
-        posts_data = GetCommentSerializer(posts, many=True).data
-        return Response(data=posts_data, status=status.HTTP_200_OK)
-
-
-comment_post = CommentView.as_view()
-
-
-class FollowUnfollow(APIView):
-    def post(self, request, *args, **kwargs):
-        profile_id = kwargs.get("pk")
-        try:
-            my_profile = Profile.objects.get(user=self.request.user)
-            profile = Profile.objects.get(id=profile_id)
-            followed = profile.followers.filter(id=request.user.id).exists()
-
-            if followed:
-                my_profile.followings.remove(request.user.id)
-                profile.followers.remove(request.user.id)
-                return Response(
-                    ProfileSerializer(profile).data, status=status.HTTP_200_OK
-                )
-            else:
-                my_profile.followings.add(profile.id)
-                profile.followers.add(request.user.id)
-                profile.save()
-                return Response(
-                    ProfileSerializer(profile).data, status=status.HTTP_200_OK
-                )
-        except:
-            return Response(
-                {"error": "No post found"}, status=status.HTTP_404_NOT_FOUND
-            )
-
-
-follow_unfollow_post = FollowUnfollow.as_view()
-
-
-class UserListView(generics.ListAPIView):
-    queryset = Profile.objects.all()
-    serializer_class = ProfileSerializer
-    filter_backends = [filters.SearchFilter]
-    search_fields = ["user__username"]
-
-
-search = UserListView.as_view()
-
-
-class PostTest(generics.ListCreateAPIView):
-    queryset = Post.objects.all()
-    serializer_class = PostSerializer
-
-    def get(self, *args, **kwargs):
-        my_posts = Q(user=self.request.user)
-        posts = Q(profile__followers=self.request.user)
-        all_posts = Post.objects.filter(Q(my_posts) | Q(posts))
-        posts_data = PostSerializer(all_posts, many=True).data
-        return Response(data=posts_data, status=status.HTTP_200_OK)
-
-
-post_test = PostTest.as_view()
-
-
-def upload(request):
-    if request.FILES:
-        form = PostSerializer(request.POST, request.FILES)
-
-        if form.is_valid():
-            form.save()
-
-    return {"success": True}
-
-
-class RegisterAPI(generics.GenericAPIView):
+    permission_classes = (AllowAny,)
     serializer_class = RegisterSerializer
 
-    def post(self, *args, **kwargs):
-        serializer = RegisterSerializer(data=self.request.data)
+
+class ProfileView(generics.RetrieveUpdateAPIView):
+    queryset = Profile.objects.all()
+    serializer_class = ProfileSerializer
+    permission_classes = [IsAuthenticated]
+    parser_classes = (MultiPartParser, FormParser, JSONParser)  # Add this line!
+
+    def get_object(self):
+        return self.request.user.profile
+
+    def update(self, request, *args, **kwargs):
+        print("Profile update request data:", request.data)
+        print("Profile update request files:", request.FILES)
+        
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        
         if serializer.is_valid():
-            user = serializer.save()
-            Profile.objects.create(user=user)
-            return Response(
-                {"success": serializer.data}, status=status.HTTP_201_CREATED
-            )
+            self.perform_update(serializer)
+            print("Profile updated successfully:", serializer.data)
+            return Response(serializer.data)
         else:
-            return Response(
-                {"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST
-            )
+            print("Profile update validation errors:", serializer.errors)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def perform_update(self, serializer):
+        serializer.save()
 
 
-register = RegisterAPI.as_view()
+class UserProfileView(generics.RetrieveAPIView):
+    serializer_class = ProfileSerializer
+    permission_classes = [AllowAny]
+
+    def get_object(self):
+        username = self.kwargs.get('username')
+        user = get_object_or_404(User, username=username)
+        return user.profile
 
 
-class MyObtainTokenPairView(TokenObtainPairView):
-    permission_classes = (AllowAny,)
+class PostListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
+    
+    def get_queryset(self):
+        following_users = self.request.user.following.all().values_list('user', flat=True)
+        return Post.objects.filter(
+            user__in=list(following_users) + [self.request.user.id]
+        )
+
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return CreatePostSerializer
+        return PostSerializer
+
+    def perform_create(self, serializer):
+        print("Creating post with data:", self.request.data)  # Debug line
+        print("Files:", self.request.FILES)  # Debug line
+        serializer.save(user=self.request.user)
+
+    def create(self, request, *args, **kwargs):
+        print("POST request data:", request.data)  # Debug line
+        print("POST request files:", request.FILES)  # Debug line
+        return super().create(request, *args, **kwargs)
 
 
-def chatPage(request, *args, **kwargs):
-    if not request.user.is_authenticated:
-        return redirect("login-user")
-    context = {}
-    return render(request, "chat/chatPage.html", context)
+class UserPostsView(generics.ListAPIView):
+    serializer_class = PostSerializer
+    permission_classes = [AllowAny]
+
+    def get_queryset(self):
+        username = self.kwargs.get('username', None)
+        if username:
+            user = get_object_or_404(User, username=username)
+            return Post.objects.filter(user=user)
+        return Post.objects.filter(user=self.request.user)
+
+
+class PostDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Post.objects.all()
+    serializer_class = PostSerializer
+    permission_classes = [IsAuthenticated]
+
+    def destroy(self, request, *args, **kwargs):
+        post = self.get_object()
+        if post.user != request.user:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        return super().destroy(request, *args, **kwargs)
+
+
+class LikePostView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        post = get_object_or_404(Post, pk=pk)
+        if request.user in post.likes.all():
+            post.likes.remove(request.user)
+            liked = False
+        else:
+            post.likes.add(request.user)
+            liked = True
+        return Response({'liked': liked, 'likes_count': post.likes_count})
+
+
+class CommentCreateView(generics.CreateAPIView):
+    serializer_class = CommentSerializer
+    permission_classes = [IsAuthenticated]
+
+    def perform_create(self, serializer):
+        post = get_object_or_404(Post, pk=self.kwargs['pk'])
+        serializer.save(user=self.request.user, post=post)
+
+
+class FollowUserView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, username):
+        user_to_follow = get_object_or_404(User, username=username)
+        if user_to_follow == request.user:
+            return Response({'error': 'You cannot follow yourself'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        profile = user_to_follow.profile
+        if request.user in profile.followers.all():
+            profile.followers.remove(request.user)
+            following = False
+        else:
+            profile.followers.add(request.user)
+            following = True
+        
+        return Response({'following': following, 'followers_count': profile.followers_count})
+
+
+class SearchUsersView(generics.ListAPIView):
+    serializer_class = ProfileSerializer
+    permission_classes = [AllowAny]
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['user__username', 'bio']
+
+    def get_queryset(self):
+        return Profile.objects.all()
+
+
+class ExploreView(generics.ListAPIView):
+    serializer_class = PostSerializer
+    permission_classes = [AllowAny]
+
+    def get_queryset(self):
+        # Get popular posts (most liked in the last 7 days)
+        from datetime import datetime, timedelta
+        last_week = datetime.now() - timedelta(days=7)
+        return Post.objects.filter(
+            created_at__gte=last_week
+        ).order_by('-likes')[:20]

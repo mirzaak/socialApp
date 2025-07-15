@@ -1,25 +1,33 @@
 {
-  "name": "frontend",
+  "name": "social-app-frontend",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "serve": "vue-cli-service serve",
-    "build": "vue-cli-service build"
+    "build": "vue-cli-service build",
+    "lint": "vue-cli-service lint",
+    "sentry:sourcemaps": "sentry-cli sourcemaps inject --org mautomations --project javascript-vue ./src && sentry-cli sourcemaps upload --org mautomations --project javascript-vue ./src"
   },
   "dependencies": {
+    "@heroicons/vue": "^2.0.18",
+    "@sentry/cli": "^2.47.0",
+    "@sentry/vue": "^9.38.0",
     "@vuelidate/core": "^2.0.0",
     "@vuelidate/validators": "^2.0.0",
-    "bootstrap": "^5.2.3",
-    "bootstrap-icons": "^1.10.5",
+    "axios": "^1.4.0",
     "core-js": "^3.8.3",
-    "firebase": "^9.17.1",
+    "date-fns": "^2.30.0",
     "pinia": "^2.0.34",
     "vue": "^3.2.13",
-    "vue-router": "^4.0.3"
+    "vue-router": "^4.0.3",
+    "vue-toastification": "^2.0.0-rc.5"
   },
   "devDependencies": {
     "@vue/cli-plugin-babel": "~5.0.0",
     "@vue/cli-plugin-router": "~5.0.0",
-    "@vue/cli-service": "~5.0.0"
+    "@vue/cli-service": "~5.0.0",
+    "autoprefixer": "^10.4.14",
+    "postcss": "^8.4.24",
+    "tailwindcss": "^3.3.2"
   }
 }

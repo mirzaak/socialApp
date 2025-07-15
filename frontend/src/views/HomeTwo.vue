@@ -13,7 +13,7 @@ import HomeLogin from "../components/HomeLogin.vue";
 import HomeLogged from "../components/HomeLogged.vue";
 import { useRouter } from "vue-router";
 import { ref } from "vue";
-import { useProductStore } from "../stores/user";
+import { useProductStore } from "../stores/auth";
 export default {
   components: {
     HomeLogin,
